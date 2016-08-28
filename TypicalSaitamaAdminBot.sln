@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TsabWebApi", "TsabWebApi\TsabWebApi.csproj", "{D9FBD5C1-675F-4143-A438-E2E031BDFF4E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TsabWorker", "TsabWorker\TsabWorker.csproj", "{202B3C18-2ABA-4963-B47E-AACE76F6E379}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TsabSharedLib", "TsabSharedLib\TsabSharedLib.csproj", "{4DD2398A-63B7-438A-9D92-2537C6223E35}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D9FBD5C1-675F-4143-A438-E2E031BDFF4E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9FBD5C1-675F-4143-A438-E2E031BDFF4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9FBD5C1-675F-4143-A438-E2E031BDFF4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9FBD5C1-675F-4143-A438-E2E031BDFF4E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{202B3C18-2ABA-4963-B47E-AACE76F6E379}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{202B3C18-2ABA-4963-B47E-AACE76F6E379}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{202B3C18-2ABA-4963-B47E-AACE76F6E379}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{202B3C18-2ABA-4963-B47E-AACE76F6E379}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4DD2398A-63B7-438A-9D92-2537C6223E35}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4DD2398A-63B7-438A-9D92-2537C6223E35}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4DD2398A-63B7-438A-9D92-2537C6223E35}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4DD2398A-63B7-438A-9D92-2537C6223E35}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
