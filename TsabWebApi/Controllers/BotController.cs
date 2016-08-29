@@ -22,7 +22,7 @@ namespace TsabWebApi.Controllers
         Task<string> BotMethod<TSend>(string method, TSend data);
         Task<TResult> BotMethod<TSend,TResult>(string method, TSend data) where TResult : class;
         Task<byte[]> GetFile(string filePath);
-        Task<TResult> ApiMethod<TSend, TResult>(string worker, string method, TSend data) where TResult : class;
+        //Task<TResult> ApiMethod<TSend, TResult>(string worker, string method, TSend data) where TResult : class;
     }
 
     public class BotController:ApiController, IBotMethod

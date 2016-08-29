@@ -161,11 +161,7 @@ namespace TsabSharedLib
             const string sql = "UPDATE [dbo].[Auth] SET [Auth] = @Grant, [Solved]=1 WHERE [Id]=@Id";
             Connection.Execute(sql, new { Id = id, Grant= grant });
         }
-
-        public string[] GetWorkers()
-        {
-            return Connection.Query<string>("SELECT [Name] FROM[dbo].[Worker]").ToArray();
-        }
+        
 
         public Guid InsertCompare(string inputBlob,int authorId,int authorChatId,string authorLastName,string authorFirstName,string algorithm,int workers, int wallId)
         {
