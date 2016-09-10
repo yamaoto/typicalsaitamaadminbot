@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -12,10 +13,11 @@ namespace TsabSharedLib
     {
         private readonly int _size;
 
-        public ImgComparer(int size, int strictValue,IEnumerable<int> walls)
+        public ImgComparer(int size, int strictValue, int strictMaxValue, IEnumerable<int> walls)
         {
             _size = size;
             _strictValue = strictValue;
+            _strictMaxValue = strictMaxValue;
             _map = new Dictionary<int, Dictionary<string, ImgMapper>>();
             foreach (var wall in walls)
             {
@@ -30,6 +32,7 @@ namespace TsabSharedLib
 
         private readonly Dictionary<int, Dictionary<string, ImgMapper>> _map;
         private readonly int _strictValue;
+        private readonly int _strictMaxValue;
 
         public bool CheckLoad(int wallId)
         {
@@ -58,7 +61,7 @@ namespace TsabSharedLib
                 g += Math.Abs(input.Map[i].G - blob.Map[i].G);
                 b += Math.Abs(input.Map[i].B - blob.Map[i].B);
             }
-            return r + g + b;
+            return (r + g + b)/3;
         }
 
         public CompareStrictResult Compare(int wallId, ImgMapper input, string inputBlob, IEnumerable<string> order)
@@ -70,21 +73,36 @@ namespace TsabSharedLib
                 {
                     return new CompareStrictResult(inputBlob, blob, true) {Value = compare};
                 }
+                if (compare >= _strictMaxValue)
+                {
+                    return new CompareStrictResult(inputBlob, null, false);
+                }
             }
             return new CompareStrictResult(inputBlob, null, false);
         }
 
-        public IEnumerable<string> Order(int wallId, ImgMapper input, string inputBlob,int number,int total)
+        public IEnumerable<string> Order(int wallId, ImgMapper input, string inputBlob)
         {
-            var order = new Dictionary<string,int>();
-            var ar = _map[wallId].Keys.ToArray();
-            for(var i=number;i<ar.Length;i+=total)
+            
+           var array = _map[wallId].Keys.ToArray();
+           var results = new ConcurrentBag<Dictionary<string, int>>();
+            Parallel.For(0, Environment.ProcessorCount,
+                (no) => results.Add(_order(array, wallId, input, no, Environment.ProcessorCount)));
+            var list = results.SelectMany(items => items).ToDictionary(item => item.Key, item => item.Value);
+            return list.OrderBy(o => o.Value).Select(s => s.Key);
+        }
+
+        private Dictionary<string, int> _order(string[] array,int wallId, ImgMapper input, int start,int total)
+        {
+            var result = new Dictionary<string, int>();
+            for (var i = start; i < array.Length; i += total)
             {
-                var blob = ar[i];
+                var blob = array[i];
                 var compare = _compareSync(wallId, input, blob);
-                order.Add(blob,compare);
+                if (compare < _strictMaxValue)
+                    result.Add(blob, compare);
             }
-            return order.OrderBy(o => o.Value).Select(s => s.Key);
+            return result;
         }
     }
     public class CompareStrictResult

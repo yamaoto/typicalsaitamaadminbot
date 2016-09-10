@@ -20,8 +20,8 @@ namespace TsabWebApi.Models
         public bool DisableWebPagePreview { get; set; }
         [DataMember(Name="disable_notification")]
         public bool DisableNotification { get; set; }
-        [DataMember(Name="reply_message_id")]
-        public int ReplyToMessageId { get; set; }
+        [DataMember(Name="reply_to_message_id")]
+        public int? ReplyToMessageId { get; set; }
         /// <summary>
         /// <see cref="InlineKeyboardButtonModel"/>, <see cref="ReplyKeyboardMarkupModel"/>, <see cref="ReplyKeyboardHideModel"/>, <see cref="ForceReplyModel"/>
         /// </summary>

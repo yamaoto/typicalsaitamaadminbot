@@ -23,7 +23,7 @@ namespace TsabWebApi.Models
         [DataMember(Name = "sticker")]
         public string Sticker { get; set; }
         [DataMember(Name = "reply_to_message_id")]
-        public int ReplyToMessageId { get; set; }
+        public int? ReplyToMessageId { get; set; }
         [DataMember(Name = "reply_markup")]
         public object ReplyMarkup { get; set; }
         [DataMember(Name = "disable_notification")]

@@ -37,6 +37,9 @@ namespace TsabSharedLib
                     Map[y].G += pixel.G;
                     Map[y].B += pixel.B;
                 }
+                //Map[y].R = Map[y].R/size;
+                //Map[y].G = Map[y].G/size;
+                //Map[y].B = Map[y].B/size;
             }
         }
 

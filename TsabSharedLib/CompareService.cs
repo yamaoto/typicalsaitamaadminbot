@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -21,7 +22,6 @@ namespace TsabSharedLib
         private readonly Api _vk;
         private readonly ImgComparer _comparer;
         private readonly ImgComparer _comparerThumb;
-        public const int ThumbSize = 5;
         private readonly CloudBlobContainer _imagesContainer;
         private readonly CloudBlobContainer _draftsContainer;
         public CompareService(DbService dbService, CloudStorageAccount storage)
@@ -29,41 +29,89 @@ namespace TsabSharedLib
             _dbService = dbService;
             _vk = new Api();
             var walls = _dbService.GetWalls().Select(s => s.Id);
-            _comparer = new ImgComparer(ConfigStorage.CompareSize, ConfigStorage.CompareValue, walls);
-            _comparerThumb = new ImgComparer(ThumbSize, ThumbSize, walls);
+            _comparer = new ImgComparer(ConfigStorage.CompareSize, ConfigStorage.CompareValue, ConfigStorage.CompareValue * 15, walls);
+            _comparerThumb = new ImgComparer(ConfigStorage.OrderSize, ConfigStorage.OrderValue, ConfigStorage.OrderValue * 15, walls);
             var blobClient = storage.CreateCloudBlobClient();
             _imagesContainer = blobClient.GetContainerReference("images");
             _draftsContainer = blobClient.GetContainerReference("drafts");
-            var blobs = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blob");
-            if (!Directory.Exists(blobs))
-                Directory.CreateDirectory(blobs);
+            _checkAndClean();
+            _checkFolders();
         }
 
-        public void LoadPhots(int wallId)
+
+        private string _baseBlobFolder;
+        public string BaseBlobFolder => _baseBlobFolder ?? (_baseBlobFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blob"));
+
+        private string _resizeBlobFolder;
+        public string ResizeBlobFolder => _resizeBlobFolder ?? (_resizeBlobFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blob", ConfigStorage.CompareSize.ToString()));
+
+        private string _rawBlobFolder;
+        public string RawBlobFolder => _rawBlobFolder ?? (_rawBlobFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blob", "raw"));
+
+        private void _checkAndClean()
+        {
+            if (!Directory.Exists(BaseBlobFolder))
+            {
+                Clean();                
+            }
+        }
+        private void _checkFolders()
+        {
+            var folders = new[]
+            {
+                BaseBlobFolder,
+                ResizeBlobFolder,
+                RawBlobFolder
+            };
+            foreach (var folder in folders)
+            {
+                if (!Directory.Exists(folder))
+                    Directory.CreateDirectory(folder);
+            }
+        }
+
+        public void LoadPhotos(int wallId)
         {
             var photos = _dbService.GetLoadedPhotos(wallId);
+            const int maxTryCount = 5;
             foreach (var photo in photos.Where(w => !_comparer.CheckLoad(wallId, w.Blob)))
             {
-                using (var stream = new MemoryStream())
+                var tryCount = 0;
+                while (tryCount < maxTryCount)
                 {
-                    var localBlob = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blob", photo.Blob);
-                    if (File.Exists(localBlob))
+                    try
                     {
-                        using (var file = File.OpenRead(localBlob))
-                            file.CopyTo(stream);
+                        using (var stream = new MemoryStream())
+                        {
+                            var localBlob = Path.Combine(ResizeBlobFolder, photo.Blob);
+                            if (File.Exists(localBlob))
+                            {
+                                using (var file = File.OpenRead(localBlob))
+                                    file.CopyTo(stream);
+                            }
+                            else
+                            {
+                                using (var blobStream = _imagesContainer.GetBlobReference(photo.Blob).OpenRead())
+                                    blobStream.CopyTo(stream);
+                                stream.Seek(0, 0);
+                                using (var file = File.OpenWrite(localBlob))
+                                    stream.CopyTo(file);
+                            }
+                            stream.Seek(0, 0);
+                            _comparer.Load(wallId, photo.Blob, stream);
+                            stream.Seek(0, 0);
+                            _comparerThumb.Load(wallId, photo.Blob, stream);
+                        }
+                        break;
                     }
-                    else
+                    catch (Exception e)
                     {
-                        using (var blobStream = _imagesContainer.GetBlobReference(photo.Blob).OpenRead())
-                            blobStream.CopyTo(stream);
-                        stream.Seek(0, 0);
-                        using (var file = File.OpenWrite(localBlob))
-                            stream.CopyTo(file);
+                        System.Diagnostics.Debug.WriteLine("Blob: {0}",photo .Blob);
+                        System.Diagnostics.Debug.WriteLine("Ul: {0}", photo .Url);
+                        System.Diagnostics.Debug.WriteLine("Exception: {0}", e.Message);
+                        System.Diagnostics.Debug.WriteLine("StackTrace: {0}", e.StackTrace);
+                        tryCount++;
                     }
-                    stream.Seek(0, 0);
-                    _comparer.Load(wallId, photo.Blob, stream);
-                    stream.Seek(0, 0);
-                    _comparerThumb.Load(wallId, photo.Blob, stream);
                 }
             }
         }
@@ -82,7 +130,8 @@ namespace TsabSharedLib
 
                 try
                 {
-                    count = _updateWall(wall.Id, offset);
+                    count = _updateWall(wall.Id, offset,wall.LastItemId);
+
                     retry = false;
                     if (count == -1)
                     {
@@ -118,20 +167,31 @@ namespace TsabSharedLib
             _dbService.SetWallUpdate(wallId);
         }
 
-        private int _updateWall(int ownerId, int offset)
+        private int _updateWall(int ownerId, int offset,long? lastItemId)
         {
             var get = _vk.Wall.Get(ownerId, offset: offset, count: 100);
             get.Wait();
             var result = get.Result;
+            if (result.Items.Length == 0)
+            {
+                return -1;
+            }
+            var listItems = new List<WallItemModel>();
+            var listPhotos = new List<PhotoModel>();
+            var isLast = false;
+            long? lasUpdateItem=null;
+            if (offset == 0&&result.Count>0)
+                lasUpdateItem = result.First().Id;
             foreach (var item in result)
             {
-                if (_dbService.CheckWallItem(ownerId, item.Id))
-                {
-                    return -1;
-                }
                 try
                 {
-                    _dbService.InsertWallItem(new WallItemModel(ownerId, item.Id, $"http://vk.com/wall{ownerId}_{item.Id}"));
+                    if (lastItemId == item.Id)
+                    {
+                        isLast = true;
+                        break;
+                    }
+                    listItems.Add(new WallItemModel(ownerId, item.Id, $"http://vk.com/wall{ownerId}_{item.Id}"));
                 }
                 catch (Exception)
                 {
@@ -155,7 +215,7 @@ namespace TsabSharedLib
                             src = photo.Photo604;
                         if (src == null)
                             continue;
-                        _dbService.InsertPhoto(new PhotoModel(ownerId, item.Id, src));
+                        listPhotos.Add(new PhotoModel(ownerId, item.Id, src));
                     }
                     catch (Exception e)
                     {
@@ -163,6 +223,10 @@ namespace TsabSharedLib
                     }
                 }
             }
+            _dbService.InsertWallItems(listItems, lasUpdateItem,ownerId);
+            _dbService.InsertPhotos(listPhotos);
+            if (isLast)
+                return -1;
             return result.Count;
         }
 
@@ -170,7 +234,9 @@ namespace TsabSharedLib
         {
                 if (!_comparer.CheckLoad(model.WallId))
                 {
-                    LoadPhots(model.WallId);
+
+                    throw new Exception("Ошибочка вышла, я еще не обновил стену сообщества. Сперва получи обновления сообщества и затем попробуй еще раз...");
+                    //LoadPhots(model.WallId);
                 }
                 CompareStrictResult compare = null;
                 using (var inpuTStream = _draftsContainer.GetBlobReference(model.Blob).OpenRead())
@@ -179,10 +245,10 @@ namespace TsabSharedLib
                     {
                         inpuTStream.CopyTo(stream);
                         stream.Seek(0, 0);
-                        var inputThumb = new ImgMapper(Image.FromStream(stream), ThumbSize);
+                        var inputThumb = new ImgMapper(Image.FromStream(stream), ConfigStorage.OrderSize);
                         stream.Seek(0, 0);
                         var input = new ImgMapper(Image.FromStream(stream), ConfigStorage.CompareSize);
-                        var order = _comparerThumb.Order(model.WallId, inputThumb, model.Blob, model.Number, model.Total);
+                        var order = _comparerThumb.Order(model.WallId, inputThumb, model.Blob);
                         compare = _comparer.Compare(model.WallId, input, model.Blob, order);
                     }
                 }
@@ -196,38 +262,62 @@ namespace TsabSharedLib
             if (wall == null)
                 throw new Exception();
             var items = _dbService.GetNotLoadedItems(wallId);
-            var tasks = new List<Task<KeyValuePair<string, string>>>();
+            var urls = new List<string>();
             foreach (var item in items)
             {
                 foreach (var photo in item)
                 {
-                    tasks.Add(_loadWall(photo.Url));
+                    //tasks.Add(_loadWall(photo.Url));
+                    urls.Add(photo.Url);
                 }
             }
-            var taskAr = tasks.ToArray();
-            Task.WaitAll(taskAr);
-            var list = taskAr.Where(w => w.Status != TaskStatus.Faulted).Select(task => task.Result).ToArray();
+            var resultCollection = new ConcurrentBag<KeyValuePair<string, string>>();
+            Parallel.ForEach(
+                urls,
+                new ParallelOptions {MaxDegreeOfParallelism = 10}, url=>  resultCollection.Add(_loadWallSync(url)));
+            
+            var list = resultCollection.ToArray();
             if (list.Length > 0)
                 _dbService.SetLoadedPhoto(list);
             _dbService.SetLoadedWall(wallId);
         }
-
-        private Task<KeyValuePair<string, string>> _loadWall(string photoUrl)
-        {
-            return Task.Run(() => _loadWallSync(photoUrl));
-        }
+        
         private KeyValuePair<string, string> _loadWallSync(string photoUrl)
         {
-            var data = _loadFileSync(photoUrl);
+            var tryCount = 0;
+            const int maxTry=4;
+            byte[] data;
+            while (true)
+            {
+                try
+                {
+                    data = _loadFileSync(photoUrl);
+                    break;
+                }
+                catch (Exception)
+                {
+                    tryCount++;
+                    if(tryCount>= maxTry)
+                        throw;
+                }
+            }
             var extr = _prepareImage(data);
-            var name = Guid.NewGuid().ToString("N") + ".bmp";
+            var id = Guid.NewGuid().ToString("N");
+            var name = id + ".bmp";
+            var nameRaw= id + ".jpg";
             _uploadBlob(name, extr);
 
-            var localBlob = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blob", name);
+            var localBlobRaw = Path.Combine(RawBlobFolder, nameRaw);
+            if (!File.Exists(localBlobRaw))
+            {
+                using (var file = File.OpenWrite(localBlobRaw))
+                    file.Write(data, 0, data.Length);
+            }
+            var localBlob = Path.Combine(ResizeBlobFolder, name);
             if (!File.Exists(localBlob))
             {
                 using (var file = File.OpenWrite(localBlob))
-                    file.Write(data, 0, data.Length);
+                    file.Write(extr, 0, extr.Length);
             }
             return new KeyValuePair<string, string>(photoUrl, name);
         }
@@ -263,6 +353,13 @@ namespace TsabSharedLib
         {
             var cl = new WebClient();
             return cl.DownloadData(url);
+        }
+
+        public void Clean()
+        {
+            Parallel.ForEach(_imagesContainer.ListBlobs().OfType<CloudBlob>(), x => (x).Delete());
+            Parallel.ForEach(_draftsContainer.ListBlobs().OfType<CloudBlob>(), x => (x).Delete());
+            _dbService.ClearAll();
         }
     }
 }

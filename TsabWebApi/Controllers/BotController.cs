@@ -17,42 +17,17 @@ using TsabWebApi.Models;
 
 namespace TsabWebApi.Controllers
 {
-    internal interface IBotMethod
+    public class BotController:ApiController
     {
-        Task<string> BotMethod<TSend>(string method, TSend data);
-        Task<TResult> BotMethod<TSend,TResult>(string method, TSend data) where TResult : class;
-        Task<byte[]> GetFile(string filePath);
-        //Task<TResult> ApiMethod<TSend, TResult>(string worker, string method, TSend data) where TResult : class;
-    }
-
-    public class BotController:ApiController, IBotMethod
-    {
-        private readonly string _token;
-        private readonly WebClient _client;
-        private readonly BotService _botService;
+        private static BotService _botService;
         private readonly DbService _dbService;
 
         public BotController()
         {
-            _token = ConfigurationManager.AppSettings["token"];
-            var registered = ConfigurationManager.AppSettings["reistered"]=="true";
-            _client = new WebClient();
-            _botService = new BotService(this);
+            if(_botService==null)
+                _botService = new BotService();
             _dbService = new DbService(ConfigurationManager.ConnectionStrings["default"].ConnectionString);
 
-        }
-
-        [Route("Register")]
-        [HttpGet]
-        public async Task<bool> Register(UpdateModel model)
-        {
-            var registered = ConfigurationManager.AppSettings["reistered"]=="true";
-            if (!registered)
-            {
-                await _registerWebhook();
-                return true;
-            }
-            return false;
         }
         [Route("244732989_BotWebhook")]
         [HttpPost]
@@ -64,14 +39,22 @@ namespace TsabWebApi.Controllers
             }
             catch (Exception e)
             {
+                _dbService.SetMessageError(model.Message.Chat.Id,model.Message.MessageId,e.Message+" .Трассировка: "+e.StackTrace+"\r\n");
 #if (DEBUG)
-                _send(new SendMessageModel(model.Message.Chat.Id, e.Message+ e.StackTrace)).Wait();
+                _send(new SendMessageModel(model.Message.Chat.Id, "Что-то пошло не так...")).Wait();
 #endif
             }
         }
         public void _webHookCallback(UpdateModel model)
         {
-            if (!_dbService.CheckMessage(model.Message.Chat.Id,model.Message.MessageId,model.Message.Text))
+            string photo = null;
+            string json = null;
+            if (model.Message?.Photo != null)
+                photo = model.Message.Photo.OrderBy(o => o.Weight).First().FileId;
+#if (DEBUG)
+            json = JsonConvert.SerializeObject(model);
+#endif
+            if (!_dbService.CheckMessage(model.Message.Chat.Id, model.Message.MessageId, model.Message.Text, photo, json))
             {
                 return;
             }
@@ -135,130 +118,19 @@ namespace TsabWebApi.Controllers
             }
         }
 
-        public async Task<string> BotMethod<TSend>(string method, TSend data)
-        {
-            var result = await _makreRequest<TSend>(_method(method), data);
-            return result;
-        }
-
-        public async Task<TResult> BotMethod<TSend,TResult>(string method, TSend data) where TResult : class
-        {
-            var result = await _makreRequest<TSend, TResult>(_method(method), data);
-            return result;
-        }
         
-        public async Task<TResult> ApiMethod<TSend, TResult>(string worker,string method, TSend data) where TResult : class
-        {
-            var result = await _makreRequest<TSend, TResult>(worker+method, data);
-            return result;
-        }
-
-        public async Task<byte[]> GetFile(string filePath)
-        {
-            var result = await _client.DownloadDataTaskAsync($"https://api.telegram.org/file/bot{_token}/{filePath}");
-            return result;
-        }
 
         private async Task _sendMessage(SendMessageModel message)
         {
-            var result = await BotMethod< SendMessageModel,MessageModel>("sendMessage", message);
+            var result = await _botService.BotApi.BotMethod< SendMessageModel,MessageModel>("sendMessage", message);
         }
 
         private async Task _sendSticker(SendStickerModel sticker)
         {
-            var result = await BotMethod<SendStickerModel, MessageModel>("sendMessage", sticker);
-        }
+            var result = await _botService.BotApi.BotMethod<SendStickerModel, MessageModel>("sendSticker", sticker);
+        }        
 
-        private string _method(string method,Dictionary<string,string> param=null)
-        {
-            var url= $"https://api.telegram.org/bot{_token}/{method}";
-            if (param != null && param.Keys.Count > 0)
-            {
-                url += "?";
-                foreach (var item in param)
-                {
-                    if (url[url.Length - 1] != '?')
-                        url += "&";
-                    url += HttpUtility.UrlEncode(item.Key) + "=" + HttpUtility.UrlEncode(item.Value);
-                }
-            }
-            return url;
-        }
-
-        private string _api(string method, int number, Dictionary<string, string> param = null)
-        {
-            var url = $"http://typical-saitama-admin-bot-w{number}.azurewebsites.net/{method}";
-            if (param != null && param.Keys.Count > 0)
-            {
-                url += "?";
-                foreach (var item in param)
-                {
-                    if (url[url.Length - 1] != '?')
-                        url += "&";
-                    url += HttpUtility.UrlEncode(item.Key) + "=" + HttpUtility.UrlEncode(item.Value);
-                }
-            }
-            return url;
-        }
-
-        private async Task _registerWebhook()
-        {
-            var webhook = ConfigurationManager.AppSettings["webhook"];
-            var url = _method("setWebhook",new Dictionary<string, string>() { {"url", webhook } });
-            var result = await _makreRequest(url);
-        }
-
-        private async Task<string> _makreRequest(string url)
-        {
-            var result = await _client.DownloadStringTaskAsync(url);
-            return result;
-        }
-        private async Task<string> _makreRequest<TSend>(string url, TSend data)
-        {
-            try
-            {
-                var json = JsonConvert.SerializeObject(data,new JsonSerializerSettings() {NullValueHandling = NullValueHandling.Ignore});
-                var buffer = Encoding.UTF8.GetBytes(json);
-                var req = (HttpWebRequest )WebRequest.Create(url);
-                req.Method = "POST";
-                req.ContentType = "application/json";
-                req.ContentLength = buffer.Length;
-                req.Timeout = Convert.ToInt32(TimeSpan.FromHours(1).TotalMilliseconds);
-                var stream = req.GetRequestStream();
-                
-                stream.Write(buffer, 0, buffer.Length);
-                stream.Close();
-                var response = req.GetResponse();
-                var responseStream = response.GetResponseStream();
-                var result = new StreamReader(responseStream, Encoding.UTF8).ReadToEnd();
-                response.Close();
-                responseStream.Close();
-                return result;
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e.Message);
-                return null;
-            }
-        }
-
-        private async Task<TResponse> _makreRequest<TSend,TResponse>(string url, TSend data) where TResponse : class
-        {
-            var json = await _makreRequest<TSend>(url,data);
-            TResponse result = null;
-            try
-            {
-                result = JsonConvert.DeserializeObject<TResponse>(json);
-            }
-            catch (Exception e)
-            {
-#if (DEBUG)
-                throw new Exception("json error: "+json,e);
-#endif
-                throw;
-            }
-            return result;
-        }
+        
     }
 
 }
