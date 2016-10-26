@@ -28,6 +28,7 @@ namespace TsabWebApi
         private readonly CloudBlobContainer _imagesContainer;
         private readonly CloudBlobContainer _draftsContainer;
         private readonly CompareService _compareService;
+        private readonly SearchService _searchService;
 
         private readonly IBotAction[] _actions;
         
@@ -41,9 +42,10 @@ namespace TsabWebApi
             _imagesContainer = blobClient.GetContainerReference("images");
             _draftsContainer = blobClient.GetContainerReference("drafts");
             _compareService = new CompareService(new DbService(ConfigurationManager.ConnectionStrings["default"].ConnectionString), storage);
+            _searchService = new SearchService();
             _actions = GetActions();
             BotApi = new BotApi();
-            var context = new BotActionContext(BotApi, _dbService,_imagesContainer,_draftsContainer,_compareService);
+            var context = new BotActionContext(BotApi, _dbService,_imagesContainer,_draftsContainer,_compareService, _searchService);
             foreach (var action in _actions)
             {
                 action.Start(context);
@@ -118,7 +120,7 @@ namespace TsabWebApi
                 foreach (var auth in auths)
                 {
                     var id = _dbService.InsertCompare(photo.FileId, message.From.Id, message.Chat.Id,
-                        message.From.LastName, message.From.FirstName, ConfigStorage.ClusteredV1, 1,
+                        message.From.LastName, message.From.FirstName, ConfigStorage.MtNonClusteredV1, 1,
                         auth.WallId);
                     var param = new CheckPhotoModel(id, message.MessageId, photo.FileId, auth.WallId);
                     list.Add(param);
@@ -181,7 +183,7 @@ namespace TsabWebApi
             _client = new WebClient();
         }
 
-        private string _method(string method, Dictionary<string, string> param = null)
+        public string Method(string method, Dictionary<string, string> param = null)
         {
             var url = $"https://api.telegram.org/bot{_token}/{method}";
             if (param != null && param.Keys.Count > 0)
@@ -200,13 +202,13 @@ namespace TsabWebApi
 
         public async Task<string> BotMethod<TSend>(string method, TSend data)
         {
-            var result = await _makreRequest<TSend>(_method(method), data);
+            var result = await _makreRequest<TSend>(Method(method), data);
             return result;
         }
 
         public async Task<TResult> BotMethod<TSend, TResult>(string method, TSend data) where TResult : class
         {
-            var result = await _makreRequest<TSend, TResult>(_method(method), data);
+            var result = await _makreRequest<TSend, TResult>(Method(method), data);
             return result;
         }
 
@@ -280,18 +282,20 @@ namespace TsabWebApi
     {
         public readonly BotApi BotMethods;
         public readonly DbService DbService;
+        public readonly SearchService SearchService;
 
         public readonly CloudBlobContainer ImagesContainer;
         public readonly CloudBlobContainer DraftsContainer;
         public readonly CompareService CompareService;
 
-        public BotActionContext(BotApi botMethods, DbService dbService, CloudBlobContainer imagesContainer, CloudBlobContainer draftsContainer, CompareService compareService)
+        public BotActionContext(BotApi botMethods, DbService dbService, CloudBlobContainer imagesContainer, CloudBlobContainer draftsContainer, CompareService compareService, SearchService searchService)
         {
             BotMethods = botMethods;
             DbService = dbService;
             ImagesContainer = imagesContainer;
             DraftsContainer = draftsContainer;
             CompareService = compareService;
+            SearchService = searchService;
         }
     }
 }

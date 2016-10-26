@@ -138,7 +138,7 @@ namespace TsabSharedLib
             }
         }
 
-        public void SetState(int userId,int chatId, string state, string stateParams = null)
+        public void SetState(int userId,int chatId, string state="NoState", string stateParams = null)
         {
             using (var connection = Connection())
             {
@@ -397,6 +397,40 @@ SET [LastUpdate]= NULL,
                 connection.Execute(sql, commandTimeout: 0);
             }
 
+        }
+
+        public void SetVkUser(Guid id, int telegramUserId)
+        {
+            using (var connection = Connection())
+            {
+                connection.Execute("[dbo].[SetVkUser]", new { Id = id, TelegramUserId = telegramUserId },commandType:CommandType.StoredProcedure);
+            }
+        }
+        public void SetVkUser(Guid id, long? userId=null, string code = null,string token = null, DateTime? expires=null)
+        {
+            using (var connection = Connection())
+            {
+                connection.Execute("[dbo].[SetVkUser]", 
+                    new
+                    {
+                        Id = id,
+                        UserId= userId,
+                        Code =code,
+                        Token=token,
+                        Expires=expires,
+                    },
+                    commandType: CommandType.StoredProcedure);
+            }
+        }
+
+        public int GetTelegramUserId(Guid id)
+        {
+            int result;
+            using (var connection = Connection())
+            {
+                result = connection.ExecuteScalar<int>("SELECT TOP(1) [TelegramUserId] FROM [VkUser] WHERE [Id] = @Id", new {Id = id});
+            }
+            return result;
         }
     }
 }

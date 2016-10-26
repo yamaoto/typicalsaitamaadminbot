@@ -81,10 +81,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CleanAction.cs" />
-    <Compile Include="ITsabConsoleAction.cs" />
+    <Compile Include="Actions\CheckPhotoAction.cs" />
+    <Compile Include="Actions\CleanAction.cs" />
+    <Compile Include="Actions\HelpAction.cs" />
+    <Compile Include="Actions\ITsabConsoleAction.cs" />
+    <Compile Include="Actions\ListAdminAction.cs" />
+    <Compile Include="Actions\ListWallAction.cs" />
+    <Compile Include="Actions\LoadPhotosAction.cs" />
+    <Compile Include="Actions\LoadWallAction.cs" />
+    <Compile Include="Actions\SearchAction.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Actions\UpdateWallAction.cs" />
+    <Compile Include="Actions\VkAction.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

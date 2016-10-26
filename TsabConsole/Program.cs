@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
+using TsabConsole.Actions;
 using TsabSharedLib;
 
 namespace TsabConsole
@@ -39,6 +40,8 @@ namespace TsabConsole
                 new ListWallAction(),
                 new ListAdminAction(),
                 new HelpAction(),
+                new VkAction(),
+                new SearchAction()
             };
             Actions = list.ToDictionary(s => s.ActionName, s => s);
             var command = "";
@@ -84,6 +87,7 @@ namespace TsabConsole
             CloudStorageAccount = CloudStorageAccount.Parse(ConfigurationManager.AppSettings["StorageConnectionString"]);
             DbService = new DbService(ConfigurationManager.ConnectionStrings[config].ConnectionString);
             CompareService = new CompareService(DbService, CloudStorageAccount);
+            SearchService = new SearchService();
 
             var blobClient = CloudStorageAccount.CreateCloudBlobClient();
             ImagesContainer = blobClient.GetContainerReference("images");
@@ -96,6 +100,8 @@ namespace TsabConsole
 
         public readonly CloudBlobContainer ImagesContainer;
         public readonly CloudBlobContainer DraftsContainer;
+
+        public readonly SearchService SearchService;
     }
 
 }

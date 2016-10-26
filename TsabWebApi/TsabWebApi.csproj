@@ -115,10 +115,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="404.html" />
     <Content Include="bg.jpg" />
     <Content Include="bot-avatar.jpg" />
     <Content Include="Default.html" />
     <Content Include="Global.asax" />
+    <Content Include="Search.html" />
+    <Content Include="Vk.html" />
     <Content Include="Web.config" />
   </ItemGroup>
   <ItemGroup>
@@ -128,14 +131,18 @@
     <Compile Include="BotCommands\HelpAction.cs" />
     <Compile Include="BotCommands\IBotAction.cs" />
     <Compile Include="BotCommands\MainMessageAction.cs" />
+    <Compile Include="BotCommands\NextAction.cs" />
     <Compile Include="BotCommands\PublicAction.cs" />
+    <Compile Include="BotCommands\SearchAction.cs" />
     <Compile Include="BotCommands\StartAction.cs" />
     <Compile Include="BotCommands\UpdateAction.cs" />
+    <Compile Include="BotCommands\VkAction.cs" />
     <Compile Include="BotService.cs" />
     <Compile Include="Controllers\BotController.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Models\SearchResultModel.cs" />
     <Compile Include="Models\TelegramResult.cs" />
     <Compile Include="Models\WallUpdateModel.cs" />
     <Compile Include="Models\AudioModel.cs" />

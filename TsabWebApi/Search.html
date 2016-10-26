@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html ng-app="search">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="user-scalable=yes, initial-scale=1.0, maximum-scale=2.0, width=device-width" />
+    <title>typical_saitama_adminBot</title>
+    <meta charset="utf-8" />
+    <script src="https://code.angularjs.org/1.4.8/angular.js" data-semver="1.4.8" data-require="angularjs@1.4.8"></script>
+    <style>
+        html, body {
+            background-color: #eee;
+        }
+
+        h1 {
+            font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif;
+            font-size: 24px;
+            font-style: normal;
+            font-variant: normal;
+            font-weight: 500;
+            line-height: 26.4px;
+            color: rgb(82, 82, 82);
+        }
+
+        .item img {
+            border: #cbe 1px solid;
+        }
+
+        .item img {
+            width: 80%;
+        }
+
+        .item, .item img {
+            max-width: 350px;
+        }
+
+        .wrap, .wrap .item {
+            text-align: center;
+        }
+
+        .wrap {
+            margin: 20px 0;
+            background-repeat: no-repeat;
+        }
+
+        .more {
+            text-align: center;
+            margin: 50px 0 20px;
+        }
+    </style>
+    <model />
+    <script>
+        var searchApp = angular.module('search', []);
+        searchApp.controller('collectionController', [function () {
+            this.result = JSON.parse(document.getElementById('model').text);
+            this.getBg=function(index){
+              var text =this.result.items[index].description;
+              var canvas = document.createElement('canvas');
+              canvas.width  = document.body.offsetWidth;
+              canvas.height = 200;
+              var context = canvas.getContext("2d");
+              context.fillStyle = "#cbe";
+              context.font = "bold 16px Arial";
+              context.fillText(text, 100, 100);
+              var dataURL = canvas.toDataURL();
+              this.result.items[index].dataURL=dataURL;
+              return dataURL;
+            }
+        }]);
+    </script>
+</head>
+<body>
+    <div ng-controller="collectionController as cc">
+        <h1>Результаты поиска по тегу #{{cc.result.tag}}</h1>
+        <div style="background-image: url({{cc.getBg($index)}})" ng-repeat="item in cc.result.items" class="wrap">
+            <a href="{{item.imageUrl}}" class="item">
+                <img alt="item.description" ng-src="{{item.thumb}}" />
+            </a>
+            <br />
+        </div>
+        <h1 ng-visible="cc.result.items.length>0" class="more">
+            <a href="#">Найти еще</a>
+        </h1>
+    </div>
+</body>
+</html>

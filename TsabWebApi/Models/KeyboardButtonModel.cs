@@ -5,6 +5,14 @@ namespace TsabWebApi.Models
     [DataContract]
     public class KeyboardButtonModel
     {
+        public KeyboardButtonModel()
+        {
+
+        }
+        public KeyboardButtonModel(string text)
+        {
+            Text = text;
+        }
         [DataMember(Name = "text")]
         public string Text { get; set; }
         [DataMember(Name="request_contact")]

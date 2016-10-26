@@ -6,13 +6,17 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using kasthack.vksharp;
+using kasthack.vksharp.DataTypes;
 using kasthack.vksharp.DataTypes.Enums;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Newtonsoft.Json;
 
 namespace TsabSharedLib
 {
@@ -115,6 +119,12 @@ namespace TsabSharedLib
                 }
             }
         }
+
+        public string GetVkAuth(string state)
+        {
+            var url =$"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups&state={state}&response_type=code&v=5.53";
+            return url;
+        }        
 
         public void UpdateWall(int wallId)
         {
@@ -360,6 +370,47 @@ namespace TsabSharedLib
             Parallel.ForEach(_imagesContainer.ListBlobs().OfType<CloudBlob>(), x => (x).Delete());
             Parallel.ForEach(_draftsContainer.ListBlobs().OfType<CloudBlob>(), x => (x).Delete());
             _dbService.ClearAll();
+        }
+
+        public async Task Publish(ISearchResultItem item,int wallId)
+        {
+            //var imageData = new WebClient().DownloadData(item.ImageUrl);
+            //byte[] jpegImageData = null;
+            //using (var stream = new MemoryStream(imageData))
+            //{
+            //    var image = Image.FromStream(stream);
+            //    using (var outStream = new MemoryStream())
+            //    {
+            //        image.Save(outStream,ImageFormat.Jpeg);
+            //        jpegImageData = outStream.GetBuffer();
+            //    }
+            //}
+            //var urlResult = await _vk.Photos.GetUploadServer(wallId);
+            //var client = new HttpClient();
+            //var requestContent = new MultipartFormDataContent();
+            //var imageContent = new ByteArrayContent(jpegImageData);
+            //imageContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+            //requestContent.Add(imageContent, "photo");
+            //var result = await client.PostAsync(urlResult.UploadUrl, requestContent);
+            //string server = null;
+            //string photo = null;
+            //string hash = null;
+            //using (var resultContent = await result.Content.ReadAsStreamAsync())
+            //{
+            //    using (var reader = new StreamReader(resultContent))
+            //    {
+            //        var jsonString = reader.ReadToEnd();
+            //        dynamic json = JsonConvert.DeserializeObject(jsonString);
+            //        photo = (string)json.photo;
+            //        server = (string)json.server;
+            //        hash = (string)json.hash;
+            //    }
+            //}
+            //_vk.
+            //var attachments = new[] { ContentId. }
+            //var ressdasult = await _vk.Wall.Post(null, attachments, ownerId: wallId, fromGroup: true, signed: false,
+            //    publishDate: new DateTimeOffset(DateTime.Now, TimeSpan.FromHours(1)));
+            throw new NotImplementedException();
         }
     }
 }

@@ -22,7 +22,11 @@ namespace TsabWebApi.BotCommands
         {
             _dbService.SetState(message.From.Id,message.Chat.Id, "NoState");
             var msg = $@"Ладно";
-            flow = new MessageFlow() { new MessageFlowItem(message.Chat.Id, "BQADBAADMAMAAqKYZgABj5c3MVEUXD4C", true, TimeSpan.FromSeconds(2)) };
+            var state = _context.DbService.GetState(message.From.Id);
+            if (state.State == "choose-tag")
+                flow = null;
+            else
+                flow = new MessageFlow() { new MessageFlowItem(message.Chat.Id, "BQADBAADMAMAAqKYZgABj5c3MVEUXD4C", true, TimeSpan.FromSeconds(2)) };
             return new SendMessageModel(message.Chat.Id, msg) {ReplyMarkup = new ReplyKeyboardHideModel() {HideKeyboard = true} };
         }
 

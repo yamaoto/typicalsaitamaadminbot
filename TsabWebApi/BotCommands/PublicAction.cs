@@ -15,7 +15,7 @@ namespace TsabWebApi.BotCommands
             _context = context;
         }
 
-        public string[] States { get; } = new [] { "choose-public", "wait-auth", "grant-auth" };
+        public string[] States { get; } = new [] { "public-choose", "public-wait-auth", "public-grant-auth" };
         public string CommandName { get; } = "/public";
         public string Description { get; } = "получение доступа к сообществу";
 
@@ -23,40 +23,37 @@ namespace TsabWebApi.BotCommands
 
         public ISendItem Command(string command, MessageModel message, out MessageFlow flow)
         {
-            var msg = $@"Ok, ты можешь получить доступ к этим сообществам:";
-            var msg2 = new SendMessageModel(message.Chat.Id, "К какому сообществу тебя записать?");
-            msg2.ReplyMarkup = new ReplyKeyboardMarkupModel()
-            {
-                OneTimeKeyboard = true,
-            };
+            var msg1 = $@"Ok, ты можешь получить доступ к этим сообществам:";
+
             var walls = _dbService.GetWalls();
-            var btns = new List<KeyboardButtonModel>();
             var auths = _dbService.GetAuths(message.From.Id);
+            var buttons = new List<KeyboardButtonModel>();
             foreach (var wall in walls.Where(wall => !auths.Any(a => a.WallId == wall.Id && a.Auth)))
             {
-                msg = msg + $"\r\n    *) {wall.Name}";
-                btns.Add(new KeyboardButtonModel() { Text = wall.Name });
+                msg1 = msg1 + $"\r\n    *) {wall.Name}";
+                buttons.Add(new KeyboardButtonModel() { Text = wall.Name });
             }
-            if (btns.Count == 0)
+            if (buttons.Count == 0)
             {
                 flow = new MessageFlow() { new MessageFlowItem(message.Chat.Id, "BQADAgAD-SYAAktqAwABXyf8g9wohKUC", true, TimeSpan.FromSeconds(1)) };
                 return new SendMessageModel(message.Chat.Id, "Так, слушай. У нас больше нет сообществ для тебя");
             }
-            ((ReplyKeyboardMarkupModel)msg2.ReplyMarkup).Keyboard = btns.Select(s => new[] { s }).ToArray();
-            _dbService.SetState(message.From.Id,message.Chat.Id, "choose-public");
+            _dbService.SetState(message.From.Id,message.Chat.Id, "public-choose");
+            var msg2 = new SendMessageModel(message.Chat.Id, "К какому сообществу тебя записать?",new ReplyKeyboardMarkupModel(buttons));
             flow = new MessageFlow() { { new MessageFlowItem(msg2, TimeSpan.FromSeconds(2)) } };
-            return new SendMessageModel(message.Chat.Id, msg);
+            
+            return new SendMessageModel(message.Chat.Id, msg1);
         }
 
         public ISendItem Message(string state,string text, MessageModel message, out MessageFlow flow)
         {
             switch(state)
             {
-                case "choose-public":
+                case "public-choose":
                     return _stateChoosePublic(text, message, out flow);
-                case "wait-auth":
+                case "public-wait-auth":
                     return _stateWaitAuth(text, message, out flow);
-                case "grant-auth":
+                case "public-grant-auth":
                     return _stateGrantAuth(text, message, out flow);
                 default:
                     throw new InvalidOperationException();
@@ -137,7 +134,7 @@ namespace TsabWebApi.BotCommands
         {
             var walls = _dbService.GetWalls();
             var auths = _dbService.GetAuths(message.From.Id);
-            var wall = walls.FirstOrDefault(f => f.Name == text);
+            var wall = walls.FirstOrDefault(f => f.Name.Equals(text,StringComparison.CurrentCultureIgnoreCase));
             if (wall == null)
             {
                 flow = null;
@@ -160,7 +157,7 @@ namespace TsabWebApi.BotCommands
 
             }
 
-            _dbService.SetState(message.From.Id, message.Chat.Id, "wait-auth", wall.Id.ToString());
+            _dbService.SetState(message.From.Id, message.Chat.Id, "public-wait-auth", wall.Id.ToString());
             _dbService.InsertAuthQuery(message.From.Id, message.Chat.Id, message.From.LastName, message.From.FirstName, message.From.Username, wall.Id);
             var auth = _dbService.GetAuth(message.From.Id, wall.Id);
             var admins = _dbService.GetWallAdmins(wall.Id);
@@ -172,7 +169,7 @@ namespace TsabWebApi.BotCommands
             };
             foreach (var admin in admins)
             {
-                _dbService.SetState(admin.UserId, admin.UserChatId, "grant-auth", auth.Id.ToString());
+                _dbService.SetState(admin.UserId, admin.UserChatId, "public-grant-auth", auth.Id.ToString());
                 flow.Add(new MessageFlowItem(admin.UserChatId, $"Привет еще раз {admin.UserFirstName}!\r\n('{message.From.FirstName} {message.From.LastName}' запрашивает доступ к сообществу {wall.Name}.\r\n\r\nРазрешить ему?"));
             }
 
