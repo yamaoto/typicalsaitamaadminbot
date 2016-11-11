@@ -137,6 +137,7 @@
     <Compile Include="BotCommands\StartAction.cs" />
     <Compile Include="BotCommands\UpdateAction.cs" />
     <Compile Include="BotCommands\VkAction.cs" />
+    <Compile Include="BotCommands\VkGroupAction.cs" />
     <Compile Include="BotService.cs" />
     <Compile Include="Controllers\BotController.cs" />
     <Compile Include="Global.asax.cs">

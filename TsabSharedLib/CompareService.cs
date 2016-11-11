@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,16 +23,17 @@ namespace TsabSharedLib
 {
     public class CompareService
     {
-        private readonly  DbService _dbService;
-        private readonly Api _vk;
+        private readonly DbService _dbService;
         private readonly ImgComparer _comparer;
         private readonly ImgComparer _comparerThumb;
         private readonly CloudBlobContainer _imagesContainer;
         private readonly CloudBlobContainer _draftsContainer;
+
+        protected IBotApi BotApi { get; set; }
+
         public CompareService(DbService dbService, CloudStorageAccount storage)
         {
             _dbService = dbService;
-            _vk = new Api();
             var walls = _dbService.GetWalls().Select(s => s.Id);
             _comparer = new ImgComparer(ConfigStorage.CompareSize, ConfigStorage.CompareValue, ConfigStorage.CompareValue * 15, walls);
             _comparerThumb = new ImgComparer(ConfigStorage.OrderSize, ConfigStorage.OrderValue, ConfigStorage.OrderValue * 15, walls);
@@ -56,7 +58,7 @@ namespace TsabSharedLib
         {
             if (!Directory.Exists(BaseBlobFolder))
             {
-                Clean();                
+                Clean();
             }
         }
         private void _checkFolders()
@@ -110,8 +112,8 @@ namespace TsabSharedLib
                     }
                     catch (Exception e)
                     {
-                        System.Diagnostics.Debug.WriteLine("Blob: {0}",photo .Blob);
-                        System.Diagnostics.Debug.WriteLine("Ul: {0}", photo .Url);
+                        System.Diagnostics.Debug.WriteLine("Blob: {0}", photo.Blob);
+                        System.Diagnostics.Debug.WriteLine("Ul: {0}", photo.Url);
                         System.Diagnostics.Debug.WriteLine("Exception: {0}", e.Message);
                         System.Diagnostics.Debug.WriteLine("StackTrace: {0}", e.StackTrace);
                         tryCount++;
@@ -122,10 +124,14 @@ namespace TsabSharedLib
 
         public string GetVkAuth(string state)
         {
-            var url =$"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups&state={state}&response_type=code&v=5.53";
+            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups&state={state}&response_type=code&v=5.53";
             return url;
-        }        
-
+        }
+        public string GetVkGroupAuth(string state, int group)
+        {
+            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkGroupOauthRedirect}&scope=photos&state={state}&response_type=code&v=5.53";
+            return url;
+        }
         public void UpdateWall(int wallId)
         {
             var wall = _dbService.GetWall(wallId);
@@ -140,7 +146,7 @@ namespace TsabSharedLib
 
                 try
                 {
-                    count = _updateWall(wall.Id, offset,wall.LastItemId);
+                    count = _updateWall(wall.Id, offset, wall.LastItemId);
 
                     retry = false;
                     if (count == -1)
@@ -177,9 +183,10 @@ namespace TsabSharedLib
             _dbService.SetWallUpdate(wallId);
         }
 
-        private int _updateWall(int ownerId, int offset,long? lastItemId)
+        private int _updateWall(int ownerId, int offset, long? lastItemId)
         {
-            var get = _vk.Wall.Get(ownerId, offset: offset, count: 100);
+            var vkClient = new Api();
+            var get = vkClient.Wall.Get(ownerId, offset: offset, count: 100);
             get.Wait();
             var result = get.Result;
             if (result.Items.Length == 0)
@@ -189,8 +196,8 @@ namespace TsabSharedLib
             var listItems = new List<WallItemModel>();
             var listPhotos = new List<PhotoModel>();
             var isLast = false;
-            long? lasUpdateItem=null;
-            if (offset == 0&&result.Count>0)
+            long? lasUpdateItem = null;
+            if (offset == 0 && result.Count > 0)
                 lasUpdateItem = result.First().Id;
             foreach (var item in result)
             {
@@ -233,7 +240,7 @@ namespace TsabSharedLib
                     }
                 }
             }
-            _dbService.InsertWallItems(listItems, lasUpdateItem,ownerId);
+            _dbService.InsertWallItems(listItems, lasUpdateItem, ownerId);
             _dbService.InsertPhotos(listPhotos);
             if (isLast)
                 return -1;
@@ -242,28 +249,28 @@ namespace TsabSharedLib
 
         public CheckPhotoResultModel CheckPhoto(CheckPhotoModel model)
         {
-                if (!_comparer.CheckLoad(model.WallId))
-                {
+            if (!_comparer.CheckLoad(model.WallId))
+            {
 
-                    throw new Exception("Ошибочка вышла, я еще не обновил стену сообщества. Сперва получи обновления сообщества и затем попробуй еще раз...");
-                    //LoadPhots(model.WallId);
-                }
-                CompareStrictResult compare = null;
-                using (var inpuTStream = _draftsContainer.GetBlobReference(model.Blob).OpenRead())
+                throw new Exception("Ошибочка вышла, я еще не обновил стену сообщества. Сперва получи обновления сообщества и затем попробуй еще раз...");
+                //LoadPhots(model.WallId);
+            }
+            CompareStrictResult compare = null;
+            using (var inpuTStream = _draftsContainer.GetBlobReference(model.Blob).OpenRead())
+            {
+                using (var stream = new MemoryStream())
                 {
-                    using (var stream = new MemoryStream())
-                    {
-                        inpuTStream.CopyTo(stream);
-                        stream.Seek(0, 0);
-                        var inputThumb = new ImgMapper(Image.FromStream(stream), ConfigStorage.OrderSize);
-                        stream.Seek(0, 0);
-                        var input = new ImgMapper(Image.FromStream(stream), ConfigStorage.CompareSize);
-                        var order = _comparerThumb.Order(model.WallId, inputThumb, model.Blob);
-                        compare = _comparer.Compare(model.WallId, input, model.Blob, order);
-                    }
+                    inpuTStream.CopyTo(stream);
+                    stream.Seek(0, 0);
+                    var inputThumb = new ImgMapper(Image.FromStream(stream), ConfigStorage.OrderSize);
+                    stream.Seek(0, 0);
+                    var input = new ImgMapper(Image.FromStream(stream), ConfigStorage.CompareSize);
+                    var order = _comparerThumb.Order(model.WallId, inputThumb, model.Blob);
+                    compare = _comparer.Compare(model.WallId, input, model.Blob, order);
                 }
-                return new CheckPhotoResultModel(compare.FoundBlob, compare.Value);
-            
+            }
+            return new CheckPhotoResultModel(compare.FoundBlob, compare.Value);
+
         }
 
         public void LoadWall(int wallId)
@@ -284,18 +291,18 @@ namespace TsabSharedLib
             var resultCollection = new ConcurrentBag<KeyValuePair<string, string>>();
             Parallel.ForEach(
                 urls,
-                new ParallelOptions {MaxDegreeOfParallelism = 10}, url=>  resultCollection.Add(_loadWallSync(url)));
-            
+                new ParallelOptions { MaxDegreeOfParallelism = 10 }, url => resultCollection.Add(_loadWallSync(url)));
+
             var list = resultCollection.ToArray();
             if (list.Length > 0)
                 _dbService.SetLoadedPhoto(list);
             _dbService.SetLoadedWall(wallId);
         }
-        
+
         private KeyValuePair<string, string> _loadWallSync(string photoUrl)
         {
             var tryCount = 0;
-            const int maxTry=4;
+            const int maxTry = 4;
             byte[] data;
             while (true)
             {
@@ -307,14 +314,14 @@ namespace TsabSharedLib
                 catch (Exception)
                 {
                     tryCount++;
-                    if(tryCount>= maxTry)
+                    if (tryCount >= maxTry)
                         throw;
                 }
             }
             var extr = _prepareImage(data);
             var id = Guid.NewGuid().ToString("N");
             var name = id + ".bmp";
-            var nameRaw= id + ".jpg";
+            var nameRaw = id + ".jpg";
             _uploadBlob(name, extr);
 
             var localBlobRaw = Path.Combine(RawBlobFolder, nameRaw);
@@ -372,45 +379,56 @@ namespace TsabSharedLib
             _dbService.ClearAll();
         }
 
-        public async Task Publish(ISearchResultItem item,int wallId)
+        public async Task Publish(int chatId,int messageId, ISearchResultItem item, int telegramUserId, int wallId, long albumId)
         {
-            //var imageData = new WebClient().DownloadData(item.ImageUrl);
-            //byte[] jpegImageData = null;
-            //using (var stream = new MemoryStream(imageData))
-            //{
-            //    var image = Image.FromStream(stream);
-            //    using (var outStream = new MemoryStream())
-            //    {
-            //        image.Save(outStream,ImageFormat.Jpeg);
-            //        jpegImageData = outStream.GetBuffer();
-            //    }
-            //}
-            //var urlResult = await _vk.Photos.GetUploadServer(wallId);
-            //var client = new HttpClient();
-            //var requestContent = new MultipartFormDataContent();
-            //var imageContent = new ByteArrayContent(jpegImageData);
-            //imageContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
-            //requestContent.Add(imageContent, "photo");
-            //var result = await client.PostAsync(urlResult.UploadUrl, requestContent);
-            //string server = null;
-            //string photo = null;
-            //string hash = null;
-            //using (var resultContent = await result.Content.ReadAsStreamAsync())
-            //{
-            //    using (var reader = new StreamReader(resultContent))
-            //    {
-            //        var jsonString = reader.ReadToEnd();
-            //        dynamic json = JsonConvert.DeserializeObject(jsonString);
-            //        photo = (string)json.photo;
-            //        server = (string)json.server;
-            //        hash = (string)json.hash;
-            //    }
-            //}
-            //_vk.
-            //var attachments = new[] { ContentId. }
-            //var ressdasult = await _vk.Wall.Post(null, attachments, ownerId: wallId, fromGroup: true, signed: false,
-            //    publishDate: new DateTimeOffset(DateTime.Now, TimeSpan.FromHours(1)));
-            throw new NotImplementedException();
+            try
+            {
+                var vkClient = new Api();
+                var tokens = _dbService.GetTokens(telegramUserId);
+                foreach (var token in tokens)
+                {
+                    vkClient.AddToken(new Token(token));
+                }
+                var imageData = new WebClient().DownloadData(item.ImageUrl);
+                byte[] jpegImageData = null;
+                using (var stream = new MemoryStream(imageData))
+                {
+                    var image = Image.FromStream(stream);
+                    using (var outStream = new MemoryStream())
+                    {
+                        image.Save(outStream, ImageFormat.Jpeg);
+                        jpegImageData = outStream.GetBuffer();
+                    }
+                }
+                var urlResult = await vkClient.Photos.GetUploadServer(albumId, wallId);
+                var client = new HttpClient();
+                var requestContent = new MultipartFormDataContent();
+                var imageContent = new ByteArrayContent(jpegImageData);
+                imageContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+                requestContent.Add(imageContent, "photo");
+                var result = await client.PostAsync(urlResult.UploadUrl, requestContent);
+                PhotoUploadResult uploadResult = null;
+                using (var resultContent = await result.Content.ReadAsStreamAsync())
+                {
+                    using (var reader = new StreamReader(resultContent))
+                    {
+                        var jsonString = reader.ReadToEnd();
+                        uploadResult = JsonConvert.DeserializeObject<PhotoUploadResult>(jsonString);
+                    }
+                }
+                var photoSaveResult = await vkClient.Photos.Save(albumId, uploadResult.Server, uploadResult.PhotosList, uploadResult.Hash, groupId: wallId);
+                var text = "";
+                var photoAtt = new ObjectContentId(ContentType.Photo, photoSaveResult.First().Id, wallId);
+                var postResult =
+                    await
+                        vkClient.Wall.Post(text, new ContentId[] { photoAtt }, ownerId: wallId, fromGroup: true, signed: false,
+                            publishDate: new DateTimeOffset(DateTime.Now, TimeSpan.FromHours(1)));
+            }
+            catch (Exception e)
+            {
+                _dbService.SetMessageError(chatId, messageId, e.Message);
+                throw;
+            }
         }
     }
 }

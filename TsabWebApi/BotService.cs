@@ -41,7 +41,7 @@ namespace TsabWebApi
             var blobClient = storage.CreateCloudBlobClient();
             _imagesContainer = blobClient.GetContainerReference("images");
             _draftsContainer = blobClient.GetContainerReference("drafts");
-            _compareService = new CompareService(new DbService(ConfigurationManager.ConnectionStrings["default"].ConnectionString), storage);
+            _compareService = new CompareService(new DbService(ConfigurationManager.ConnectionStrings["default"].ConnectionString), storage);            
             _searchService = new SearchService();
             _actions = GetActions();
             BotApi = new BotApi();
@@ -172,7 +172,7 @@ namespace TsabWebApi
 
     }
 
-    public class BotApi
+    public class BotApi : IBotApi
     {
         private readonly WebClient _client;
         private readonly string _token;

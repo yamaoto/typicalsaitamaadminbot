@@ -23,7 +23,7 @@ namespace TsabWebApi.BotCommands
         {
             var msg = $"Так, сейчас тебе нужно авторизовать меня во Вконтакте...";
             var id = Guid.NewGuid();
-            _context.DbService.SetVkUser(id,message.From.Id);
+            _context.DbService.SetVkUser(id,message.From.Id,false,null);
             var url = _context.CompareService.GetVkAuth(id.ToString());
             flow = new MessageFlow()
             {

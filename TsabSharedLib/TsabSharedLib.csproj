@@ -86,11 +86,13 @@
     <Compile Include="CompareService.cs" />
     <Compile Include="ConfigStorage.cs" />
     <Compile Include="DbService.cs" />
+    <Compile Include="IBotApi.cs" />
     <Compile Include="ImageSearch\TumblrSearchEngine.cs" />
     <Compile Include="ImgComparer.cs" />
     <Compile Include="ImgMapper.cs" />
     <Compile Include="ISearchEngine.cs" />
     <Compile Include="PhotoModel.cs" />
+    <Compile Include="PhotoUploadResult.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SearchService.cs" />
     <Compile Include="StateModel.cs" />

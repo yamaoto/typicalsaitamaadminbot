@@ -19,6 +19,7 @@
 
         public const int VkAppId = 5625044;
         public const string VkOauthRedirect = "http://typical-saitama-admin-bot.azurewebsites.net/vk";
+        public const string VkGroupOauthRedirect = "http://typical-saitama-admin-bot.azurewebsites.net/vkgroup";
         public const string VkSecret = "H1ASA3oBy0FiqNTW0WqQ";
 
         public const string TumblrKey = "XccBbn5kdxb3B7ouiulXNWRyZgNDrUf8wTm252aUHyGNIDX4KY";

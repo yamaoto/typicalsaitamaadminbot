@@ -399,14 +399,15 @@ SET [LastUpdate]= NULL,
 
         }
 
-        public void SetVkUser(Guid id, int telegramUserId)
+        public void SetVkUser(Guid id, int telegramUserId,bool group,int? groupId)
         {
             using (var connection = Connection())
             {
-                connection.Execute("[dbo].[SetVkUser]", new { Id = id, TelegramUserId = telegramUserId },commandType:CommandType.StoredProcedure);
+                connection.Execute("[dbo].[SetVkUser]", new { Id = id, TelegramUserId = telegramUserId,Group = group,GroupId = groupId
+                },commandType:CommandType.StoredProcedure);
             }
         }
-        public void SetVkUser(Guid id, long? userId=null, string code = null,string token = null, DateTime? expires=null)
+        public void UpdateVkUser(Guid id, long? userId=null, string code = null,string token = null, DateTime? expires=null,bool group = false,int? groupId=null)
         {
             using (var connection = Connection())
             {
@@ -418,6 +419,8 @@ SET [LastUpdate]= NULL,
                         Code =code,
                         Token=token,
                         Expires=expires,
+                        Group=group,
+                        GroupId=groupId
                     },
                     commandType: CommandType.StoredProcedure);
             }
@@ -429,6 +432,17 @@ SET [LastUpdate]= NULL,
             using (var connection = Connection())
             {
                 result = connection.ExecuteScalar<int>("SELECT TOP(1) [TelegramUserId] FROM [VkUser] WHERE [Id] = @Id", new {Id = id});
+            }
+            return result;
+        }
+
+        public string[] GetTokens(int telegramUserId)
+        {
+            const string sql = "SELECT [Token] FROM [dbo].[VkUser] WHERE [TelegramUserId]=@TelegramUserId AND GETDATE()<[Expires] AND [Token] IS NOT NULL";
+            string[] result;
+            using (var connection = Connection())
+            {
+                result = connection.Query<string>(sql, new { TelegramUserId = telegramUserId }).ToArray();
             }
             return result;
         }

@@ -100,9 +100,9 @@ namespace TsabWebApi.Controllers
 
         [Route("vk")]
         [HttpGet]
-        public HttpResponseMessage Vk(string code,Guid state)
+        public HttpResponseMessage Vk(string code, Guid state)
         {
-            _dbService.SetVkUser(state,code:code);
+            _dbService.UpdateVkUser(state, code: code);
             var client = new WebClient();
             var url =
                 $"https://oauth.vk.com/access_token?client_id={ConfigStorage.VkAppId}&client_secret={ConfigStorage.VkSecret}&redirect_uri={ConfigStorage.VkOauthRedirect}&code={code}";
@@ -113,10 +113,10 @@ namespace TsabWebApi.Controllers
             {
                 var token = (string)json.access_token;
                 var expiresSec = (int)json.expires_in;
-                var expires = DateTime.Now.AddSeconds(expiresSec);
-                var userId = (long) json.user_id;
-                _dbService.SetVkUser(state, token: token,expires:expires,userId:userId);
-                _botService.BotApi.BotMethod("sendMessage", new SendMessageModel(telegramUserId, "Все нормально, доступ получили!")).Wait();
+                var expires = DateTime.UtcNow.AddSeconds(expiresSec);
+                var userId = (long)json.user_id;
+                _dbService.UpdateVkUser(state, token: token, expires: expires, userId: userId);
+                _botService.BotApi.BotMethod("sendMessage", new SendMessageModel(telegramUserId, "Почти готово, дальше введи /vkgroup")).Wait();
             }
             else
             {
@@ -124,6 +124,34 @@ namespace TsabWebApi.Controllers
 
             }
             return View();
+        }
+
+        [Route("vkgroup")]
+        [HttpGet]
+        public HttpResponseMessage VkGroup(string code, Guid state)
+        {
+            _dbService.UpdateVkUser(state, code: code);
+            var client = new WebClient();
+            var url =
+                $"https://oauth.vk.com/access_token?client_id={ConfigStorage.VkAppId}&client_secret={ConfigStorage.VkSecret}&redirect_uri={ConfigStorage.VkGroupOauthRedirect}&code={code}";
+            var tokenData = client.DownloadString(url);
+            dynamic json = JObject.Parse(tokenData);
+            var telegramUserId = _dbService.GetTelegramUserId(state);
+            if (json.access_token != null)
+            {
+                var token = (string)json.access_token;
+                var expiresSec = (int)json.expires_in;
+                var expires = DateTime.UtcNow.AddSeconds(expiresSec);
+                var userId = (long)json.user_id;
+                _dbService.UpdateVkUser(state, token: token, expires: expires, userId: userId);
+                _botService.BotApi.BotMethod("sendMessage", new SendMessageModel(telegramUserId, "Вот теперь все действительно готово!!!")).Wait();
+            }
+            else
+            {
+                _botService.BotApi.BotMethod("sendMessage", new SendMessageModel(telegramUserId, json.error_description)).Wait();
+
+            }
+            return View("vk");
         }
 
         [Route("244732989_BotWebhook")]
@@ -136,7 +164,7 @@ namespace TsabWebApi.Controllers
             }
             catch (Exception e)
             {
-                _dbService.SetMessageError(model.Message.Chat.Id,model.Message.MessageId,e.Message+" .Трассировка: "+e.StackTrace+"\r\n");
+                _dbService.SetMessageError(model.Message.Chat.Id,model.Message.MessageId,e.Message+"\r\nТрассировка:\r\n"+e.StackTrace+"\r\n");
 #if (DEBUG)
                 _send(new SendMessageModel(model.Message.Chat.Id, "Что-то пошло не так...")).Wait();
 #endif

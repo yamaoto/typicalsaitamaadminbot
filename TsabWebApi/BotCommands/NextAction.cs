@@ -7,7 +7,9 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading.Tasks;
 using System.Web;
+using TsabSharedLib;
 using TsabWebApi.Controllers;
 using TsabWebApi.Models;
 
@@ -48,9 +50,19 @@ namespace TsabWebApi.BotCommands
                 _context.DbService.SetState(message.From.Id, message.Chat.Id, "next-show");
                 result.Position++;
                 var item = items[result.Position];
+                var commands = new[] { "/next","Публикуй", "/cansel" };
+                var reply = new ReplyKeyboardMarkupModel()
+                {
+                    Keyboard = commands.Select(s => new[] {new KeyboardButtonModel() {Text = s}}).ToArray()
+                };
                 flow = new MessageFlow()
                 {
-                    new MessageFlowItem(message.From.Id,$"Найдено в '{item.Engine}', рейтинг {item.Score}",TimeSpan.FromMilliseconds(300))
+                    new MessageFlowItem(
+                        new SendMessageModel(message.From.Id,$"Найдено в '{item.Engine}', рейтинг {item.Score}",TimeSpan.FromMilliseconds(300))
+                        {
+                            ReplyMarkup = reply
+                        }
+                        )
                 };
                 var imageData = new WebClient().DownloadData(item.ImageUrl);
                 byte[] jpegImageData = null;
@@ -89,27 +101,79 @@ namespace TsabWebApi.BotCommands
 
         private ISendItem _chooseWall(string text, MessageModel message, out MessageFlow flow)
         {
+            var tag = BotController.UserSearches[message.From.Id];
+            var result = BotController.SearchResult[tag];
+            var items = result.Items.ToArray();
+            var item = items[result.Position];
             flow = new MessageFlow();
-            var auths = _context.DbService.GetAuths(message.From.Id).Where(w=>w.Auth);
+            var auths = _context.DbService.GetAuths(message.From.Id).Where(w => w.Auth);
             var walls = _context.DbService.GetWalls().Where(w => auths.Any(a => a.WallId == w.Id));
-            var wall = walls.FirstOrDefault(f => f.Name.Equals(text,StringComparison.CurrentCultureIgnoreCase));
+            var wall = walls.FirstOrDefault(f => f.Name.Equals(text, StringComparison.CurrentCultureIgnoreCase));
             if (wall != null)
             {
-                var tag = BotController.UserSearches[message.From.Id];
-                var result = BotController.SearchResult[tag];
-                var items = result.Items.ToArray();
-                var item = items[result.Position];
-                throw new NotImplementedException();
-                _context.CompareService.Publish(item,wall.Id);
-                flow = null;
-                return null;
+                if (!wall.UploadAlbum.HasValue)
+                {
+                    return new SendMessageModel(message.Chat.Id, "Администратор паблика не указал для него альбом для загруки, увы пока не могу загрузить фото...");
+                }
+                _context.DbService.SetState(message.From.Id, message.Chat.Id,"NoState");
+                return _publishPhoto(item,wall.Id,wall.UploadAlbum.Value, message, out flow);
             }
             else
             {
-                flow = null;
                 return new SendMessageModel(message.Chat.Id, "Ээ, что-то я не могу найти такое сообщество.\r\nУточни-ка...");
             }
         }
+        private static List<Task> Tasks = new List<Task>();
+        private ISendItem _publishPhoto(ISearchResultItem item,int wallId,int albumId, MessageModel message, out MessageFlow flow)
+        {
+            var task = _context.CompareService.Publish(message.From.Id, message.MessageId, item, message.From.Id, wallId,
+                albumId);
+            task.ContinueWith(async tsk =>
+            {
+                if (tsk.Exception != null) throw new Exception(tsk.Exception.Message);
+                await _context.BotMethods.BotMethod("sendMessage",
+                    new SendMessageModel(message.Chat.Id, "Готово!"));
+            });
+            Tasks.Add(task);
+            flow = null;
+            return new SendStickerModel(message.From.Id, "BQADAgADWQADq3KnAj5VX6KhUianAg");
+        }
+        private ISendItem _publish(string text, MessageModel message, out MessageFlow flow)
+        {
+            var tag = BotController.UserSearches[message.From.Id];
+            var result = BotController.SearchResult[tag];
+            var items = result.Items.ToArray();
+            var item = items[result.Position];
+            flow = new MessageFlow();
+            var auths = _context.DbService.GetAuths(message.From.Id).Where(w => w.Auth).ToArray();
+            var walls = _context.DbService.GetWalls().Where(w => auths.Any(a => a.WallId == w.Id)).ToArray();
+            if (walls.Length > 1)
+            {
+                _context.DbService.SetState(message.From.Id, message.Chat.Id, "next-choose-wall");
+                var keyboard = walls.Select(s => new KeyboardButtonModel(s.Name));
+                return new SendMessageModel(message.Chat.Id, "В какое сообщество?")
+                {
+                    ReplyMarkup = new ReplyKeyboardMarkupModel(keyboard)
+                };
+            }
+            else if (walls.Length == 1)
+            {
+                var wall = walls.First();
+                if (!wall.UploadAlbum.HasValue)
+                {
+                    return new SendMessageModel(message.Chat.Id, "Администратор паблика не указал для него альбом для загруки, увы пока не могу загрузить фото...");
+                }
+                _context.DbService.SetState(message.From.Id, message.Chat.Id, "NoState");
+
+                return _publishPhoto(item,wall.Id, wall.UploadAlbum.Value, message, out flow);
+            }
+            else
+            {
+                flow.Add(new MessageFlowItem(message.Chat.Id, "Для этого введи /public", TimeSpan.FromMilliseconds(300)));
+                return new SendMessageModel(message.Chat.Id, "Слушай, у тебя еще нет настроенного доступа для пабликов");
+            }
+        }
+
 
         private ISendItem _show(string text, MessageModel message, out MessageFlow flow)
         {
@@ -127,18 +191,10 @@ namespace TsabWebApi.BotCommands
                     new MessageFlowItem(message.Chat.Id,item.ItemUrl)
                 };
                 return new SendMessageModel(message.Chat.Id,item.Description);
-            } else if (post.Any(a => a == text))
+            } else if (post.Any(a => a.Equals(text,StringComparison.CurrentCultureIgnoreCase)))
             {
-                _context.DbService.SetState(message.From.Id,message.Chat.Id, "next-choose-wall");
-                flow = new MessageFlow();
-                var auths = _context.DbService.GetAuths(message.From.Id).Where(w => w.Auth);
-                var walls = _context.DbService.GetWalls().Where(w => auths.Any(a => a.WallId == w.Id));
-                var keyboard = walls.Select(s => new KeyboardButtonModel(s.Name));
-                return new SendMessageModel(message.Chat.Id, "В какое сообщество?")
-                {
-                    ReplyMarkup = new ReplyKeyboardMarkupModel(keyboard)
-                };
-            } else if (next.Any(a => a == text))
+                return _publish(text, message, out flow);
+            } else if (next.Any(a =>a.Equals(text, StringComparison.CurrentCultureIgnoreCase)))
             {
                 return Command(text,message,out flow);
             }
