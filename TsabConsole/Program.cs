@@ -41,7 +41,8 @@ namespace TsabConsole
                 new ListAdminAction(),
                 new HelpAction(),
                 new VkAction(),
-                new SearchAction()
+                new SearchAction(),
+                new VkPublish()
             };
             Actions = list.ToDictionary(s => s.ActionName, s => s);
             var command = "";

@@ -90,6 +90,7 @@
     <Compile Include="Actions\LoadPhotosAction.cs" />
     <Compile Include="Actions\LoadWallAction.cs" />
     <Compile Include="Actions\SearchAction.cs" />
+    <Compile Include="Actions\VkPublish.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Actions\UpdateWallAction.cs" />

@@ -126,7 +126,7 @@ namespace TsabWebApi.BotCommands
         private static List<Task> Tasks = new List<Task>();
         private ISendItem _publishPhoto(ISearchResultItem item,int wallId,int albumId, MessageModel message, out MessageFlow flow)
         {
-            var task = _context.CompareService.Publish(message.From.Id, message.MessageId, item, message.From.Id, wallId,
+            var task = _context.CompareService.Publish(item, message.From.Id, wallId,
                 albumId);
             task.ContinueWith(async tsk =>
             {

@@ -130,16 +130,19 @@ namespace TsabWebApi.Controllers
         [HttpGet]
         public HttpResponseMessage VkGroup(string code, Guid state)
         {
+            var authInfo = _dbService.GetToken(new Guid(code));
             _dbService.UpdateVkUser(state, code: code);
             var client = new WebClient();
             var url =
                 $"https://oauth.vk.com/access_token?client_id={ConfigStorage.VkAppId}&client_secret={ConfigStorage.VkSecret}&redirect_uri={ConfigStorage.VkGroupOauthRedirect}&code={code}";
             var tokenData = client.DownloadString(url);
-            dynamic json = JObject.Parse(tokenData);
+            var jobject = JObject.Parse(tokenData);
+            dynamic json= JObject.Parse(tokenData);
             var telegramUserId = _dbService.GetTelegramUserId(state);
-            if (json.access_token != null)
+            var tokenObject = jobject.GetValue("access_token" + Math.Abs(authInfo.GroupId));
+            if (tokenObject != null)
             {
-                var token = (string)json.access_token;
+                var token = tokenObject.Value<string>();
                 var expiresSec = (int)json.expires_in;
                 var expires = DateTime.UtcNow.AddSeconds(expiresSec);
                 var userId = (long)json.user_id;

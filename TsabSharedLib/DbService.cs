@@ -446,5 +446,16 @@ SET [LastUpdate]= NULL,
             }
             return result;
         }
+
+        public VkUser GetToken(Guid id)
+        {
+            const string sql = "SELECT * FROM [dbo].[VkUser] WHERE [Id] = @Id";
+            VkUser result;
+            using (var connection = Connection())
+            {
+                result = connection.Query<VkUser>(sql, new { Id = id }).FirstOrDefault();
+            }
+            return result;
+        }
     }
 }
