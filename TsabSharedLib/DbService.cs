@@ -436,13 +436,13 @@ SET [LastUpdate]= NULL,
             return result;
         }
 
-        public string[] GetTokens(int telegramUserId)
+        public VkUser[] GetTokens(int telegramUserId)
         {
-            const string sql = "SELECT [Token] FROM [dbo].[VkUser] WHERE [TelegramUserId]=@TelegramUserId AND ([Expires] IS NULL OR GETDATE()<[Expires]) AND [Token] IS NOT NULL";
-            string[] result;
+            const string sql = "SELECT*  FROM [dbo].[VkUser] WHERE [TelegramUserId]=@TelegramUserId AND ([Expires] IS NULL OR GETDATE()<[Expires]) AND [Token] IS NOT NULL";
+            VkUser[] result;
             using (var connection = Connection())
             {
-                result = connection.Query<string>(sql, new { TelegramUserId = telegramUserId }).ToArray();
+                result = connection.Query<VkUser>(sql, new { TelegramUserId = telegramUserId }).ToArray();
             }
             return result;
         }

@@ -18,6 +18,7 @@ using kasthack.vksharp.DataTypes.Enums;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace TsabSharedLib
 {
@@ -380,16 +381,30 @@ namespace TsabSharedLib
             _dbService.ClearAll();
         }
 
+        //public dynamic VkMethod(string method, IEnumerable<string> tokens, Dictionary<string, string> param)
+        //{
+        //    const string ver = "5.60";
+        //    var url = $"https://api.vk.com/method/{method}?v={ver}";
+        //    foreach (var token in tokens)
+        //    {
+        //        url += $"&access_token={token}";
+        //    }
+        //    foreach (var item in param)
+        //    {
+        //        url += $"&{item.Key}={item.Value}";
+        //    }
+        //    var client = new WebClient();
+        //    var response = client.DownloadString(url);
+        //    return JObject.Parse(response);
+        //}
+
         public async Task Publish(ISearchResultItem item, int telegramUserId, int wallId, long albumId)
         {
             try
             {
                 var vkClient = new Api();
-                var tokens = _dbService.GetTokens(telegramUserId);
-                foreach (var token in tokens)
-                {
-                    vkClient.AddToken(new Token(token));
-                }
+                var token = _dbService.GetTokens(telegramUserId).First(f=>f.GroupId==wallId);
+                vkClient.AddToken(new Token(token.Token));
                 var imageData = new WebClient().DownloadData(item.ImageUrl);
                 byte[] jpegImageData = null;
                 using (var stream = new MemoryStream(imageData))
@@ -401,6 +416,8 @@ namespace TsabSharedLib
                         jpegImageData = outStream.GetBuffer();
                     }
                 }
+
+             
                 var urlResult = await vkClient.Photos.GetUploadServer(albumId, wallId);
                 var client = new HttpClient();
                 var requestContent = new MultipartFormDataContent();
