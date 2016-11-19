@@ -125,7 +125,7 @@ namespace TsabSharedLib
 
         public string GetVkAuth(string state)
         {
-            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups,photos&state={state}&response_type=code&v=5.53";
+            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups,photos,wall&state={state}&response_type=code&v=5.53";
             return url;
         }
         public string GetVkGroupAuth(string state, int group)
@@ -381,32 +381,32 @@ namespace TsabSharedLib
             _dbService.ClearAll();
         }
 
-        //public dynamic VkMethod(string method, IEnumerable<string> tokens, Dictionary<string, string> param)
-        //{
-        //    const string ver = "5.60";
-        //    var url = $"https://api.vk.com/method/{method}?v={ver}";
-        //    foreach (var token in tokens)
-        //    {
-        //        url += $"&access_token={token}";
-        //    }
-        //    foreach (var item in param)
-        //    {
-        //        url += $"&{item.Key}={item.Value}";
-        //    }
-        //    var client = new WebClient();
-        //    var response = client.DownloadString(url);
-        //    return JObject.Parse(response);
-        //}
+        public dynamic VkMethod(string method, IEnumerable<string> tokens, Dictionary<string, string> param)
+        {
+            const string ver = "5.60";
+            var url = $"https://api.vk.com/method/{method}?v={ver}";
+            foreach (var token in tokens)
+            {
+                url += $"&access_token={token}";
+            }
+            foreach (var item in param)
+            {
+                url += $"&{item.Key}={Uri.EscapeUriString(item.Value)}";
+            }
+            var client = new WebClient();
+            var response = client.DownloadString(url);
+            return JObject.Parse(response);
+        }
 
         public async Task Publish(ISearchResultItem item, int telegramUserId, int wallId, long albumId)
         {
             try
             {
                 var token = _dbService.GetTokens(telegramUserId);
-                var groupUser = new Api();
-                groupUser.AddToken(new Token(token.First(f => f.GroupId==wallId).Token));
-                var vkUser = new Api();
-                vkUser.AddToken(new Token(token.First(f => f.TelegramUserId== telegramUserId && !f.Group).Token));
+                //var groupUser = new Api();
+                //groupUser.AddToken(new Token(token.First(f => f.GroupId==wallId).Token));
+                //var vkUser = new Api();
+                //vkUser.AddToken(new Token(token.First(f => f.TelegramUserId== telegramUserId && !f.Group).Token));
                 var imageData = new WebClient().DownloadData(item.ImageUrl);
                 byte[] jpegImageData = null;
                 using (var stream = new MemoryStream(imageData))
@@ -419,30 +419,48 @@ namespace TsabSharedLib
                     }
                 }
 
-             
-                var urlResult = await vkUser.Photos.GetUploadServer(albumId, wallId);
+
+                var urlResult = VkMethod("photos.getWallUploadServer",
+                    token.Where(f => f.TelegramUserId == telegramUserId && !f.Group).Select(s => s.Token),
+                    new Dictionary<string, string>() {{"group_id", wallId.ToString()}});
+
+                
                 var client = new HttpClient();
+                
                 var requestContent = new MultipartFormDataContent();
                 var imageContent = new ByteArrayContent(jpegImageData);
                 imageContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
-                requestContent.Add(imageContent, "photo");
-                var result = await client.PostAsync(urlResult.UploadUrl, requestContent);
-                PhotoUploadResult uploadResult = null;
+                requestContent.Add(imageContent, "photo", "photo.jpeg");
+                var result = await client.PostAsync((string)urlResult.response.upload_url, requestContent);
+                WallPhotoUploadResult uploadResult = null;
                 using (var resultContent = await result.Content.ReadAsStreamAsync())
                 {
                     using (var reader = new StreamReader(resultContent))
                     {
                         var jsonString = reader.ReadToEnd();
-                        uploadResult = JsonConvert.DeserializeObject<PhotoUploadResult>(jsonString);
+                        uploadResult = JsonConvert.DeserializeObject<WallPhotoUploadResult>(jsonString);
                     }
                 }
-                var photoSaveResult = await vkUser.Photos.Save(albumId, uploadResult.Server, uploadResult.PhotosList, uploadResult.Hash, groupId: wallId);
-                var text = "";
-                var photoAtt = new ObjectContentId(ContentType.Photo, photoSaveResult.First().Id, wallId);
-                var postResult =
-                    await
-                        groupUser.Wall.Post(text, new ContentId[] { photoAtt }, ownerId: wallId, fromGroup: true, signed: false,
-                            publishDate: new DateTimeOffset(DateTime.Now, TimeSpan.FromHours(1)));
+
+                var saveResult = VkMethod("photos.saveWallPhoto",
+                   token.Where(f => f.TelegramUserId == telegramUserId && !f.Group).Select(s => s.Token),
+                   new Dictionary<string, string>()
+                   {
+                       { "group_id", Math.Abs(wallId).ToString() },
+                       { "photo", uploadResult.Photo },
+                       { "server", uploadResult.Server },
+                       { "hash", uploadResult.Hash },
+                       {"caption","caption" }
+                   });
+
+
+                //var photoSaveResult = await vkUser.Photos.Save(albumId, uploadResult.Server, uploadResult.PhotosList, uploadResult.Hash, groupId: wallId);
+                //var text = "";
+                //var photoAtt = new ObjectContentId(ContentType.Photo, photoSaveResult.First().Id, wallId);
+                //var postResult =
+                //    await
+                //        groupUser.Wall.Post(text, new ContentId[] { photoAtt }, ownerId: wallId, fromGroup: true, signed: false,
+                //            publishDate: new DateTimeOffset(DateTime.Now, TimeSpan.FromHours(1)));
             }
             catch (Exception e)
             {
