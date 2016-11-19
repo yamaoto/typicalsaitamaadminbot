@@ -96,6 +96,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SearchService.cs" />
     <Compile Include="StateModel.cs" />
+    <Compile Include="VkAuth.cs" />
     <Compile Include="WallItemModel.cs" />
     <Compile Include="WallModel.cs" />
     <Compile Include="WallUpdateModel.cs" />

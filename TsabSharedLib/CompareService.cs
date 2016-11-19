@@ -379,7 +379,7 @@ namespace TsabSharedLib
             _dbService.ClearAll();
         }
 
-        public async Task Publish(int chatId,int messageId, ISearchResultItem item, int telegramUserId, int wallId, long albumId)
+        public async Task Publish(ISearchResultItem item, int telegramUserId, int wallId, long albumId)
         {
             try
             {
@@ -426,7 +426,6 @@ namespace TsabSharedLib
             }
             catch (Exception e)
             {
-                _dbService.SetMessageError(chatId, messageId, e.Message);
                 throw;
             }
         }
