@@ -129,7 +129,8 @@ namespace TsabSharedLib
         }
         public string GetVkGroupAuth(string state, int group)
         {
-            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkGroupOauthRedirect}&group_ids={group}&scope=photos&state={state}&response_type=code&v=5.53";
+            var positiveGroup = Math.Abs(group);
+            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkGroupOauthRedirect}&group_ids={positiveGroup}&scope=photos&state={state}&response_type=code&v=5.53";
             return url;
         }
         public void UpdateWall(int wallId)
