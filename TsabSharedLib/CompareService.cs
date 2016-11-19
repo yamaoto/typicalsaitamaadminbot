@@ -125,7 +125,7 @@ namespace TsabSharedLib
 
         public string GetVkAuth(string state)
         {
-            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups&state={state}&response_type=code&v=5.53";
+            var url = $"https://oauth.vk.com/authorize?client_id={ConfigStorage.VkAppId}&display=page&redirect_uri={ConfigStorage.VkOauthRedirect}&scope=groups,photos&state={state}&response_type=code&v=5.53";
             return url;
         }
         public string GetVkGroupAuth(string state, int group)
@@ -402,9 +402,11 @@ namespace TsabSharedLib
         {
             try
             {
-                var vkClient = new Api();
-                var token = _dbService.GetTokens(telegramUserId).First(f=>f.GroupId==wallId);
-                vkClient.AddToken(new Token(token.Token));
+                var token = _dbService.GetTokens(telegramUserId);
+                var groupUser = new Api();
+                groupUser.AddToken(new Token(token.First(f => f.GroupId==wallId).Token));
+                var vkUser = new Api();
+                vkUser.AddToken(new Token(token.First(f => f.TelegramUserId== telegramUserId && !f.Group).Token));
                 var imageData = new WebClient().DownloadData(item.ImageUrl);
                 byte[] jpegImageData = null;
                 using (var stream = new MemoryStream(imageData))
@@ -418,7 +420,7 @@ namespace TsabSharedLib
                 }
 
              
-                var urlResult = await vkClient.Photos.GetUploadServer(albumId, wallId);
+                var urlResult = await vkUser.Photos.GetUploadServer(albumId, wallId);
                 var client = new HttpClient();
                 var requestContent = new MultipartFormDataContent();
                 var imageContent = new ByteArrayContent(jpegImageData);
@@ -434,12 +436,12 @@ namespace TsabSharedLib
                         uploadResult = JsonConvert.DeserializeObject<PhotoUploadResult>(jsonString);
                     }
                 }
-                var photoSaveResult = await vkClient.Photos.Save(albumId, uploadResult.Server, uploadResult.PhotosList, uploadResult.Hash, groupId: wallId);
+                var photoSaveResult = await vkUser.Photos.Save(albumId, uploadResult.Server, uploadResult.PhotosList, uploadResult.Hash, groupId: wallId);
                 var text = "";
                 var photoAtt = new ObjectContentId(ContentType.Photo, photoSaveResult.First().Id, wallId);
                 var postResult =
                     await
-                        vkClient.Wall.Post(text, new ContentId[] { photoAtt }, ownerId: wallId, fromGroup: true, signed: false,
+                        groupUser.Wall.Post(text, new ContentId[] { photoAtt }, ownerId: wallId, fromGroup: true, signed: false,
                             publishDate: new DateTimeOffset(DateTime.Now, TimeSpan.FromHours(1)));
             }
             catch (Exception e)

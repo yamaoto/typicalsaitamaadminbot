@@ -15,5 +15,6 @@ namespace TsabSharedLib
         public long? UserId { get; set; }
         public bool Group { get; set; }
         public int? GroupId { get; set; }
+        public int TelegramUserId { get; set; }
     }
 }
