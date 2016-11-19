@@ -11,9 +11,9 @@ namespace TsabSharedLib
         public Guid Id { get; set; }
         public string Code { get; set; }
         public string Token { get; set; }
-        public DateTime Expires { get; set; }
-        public long UserId { get; set; }
+        public DateTime? Expires { get; set; }
+        public long? UserId { get; set; }
         public bool Group { get; set; }
-        public int GroupId { get; set; }
+        public int? GroupId { get; set; }
     }
 }

@@ -438,7 +438,7 @@ SET [LastUpdate]= NULL,
 
         public string[] GetTokens(int telegramUserId)
         {
-            const string sql = "SELECT [Token] FROM [dbo].[VkUser] WHERE [TelegramUserId]=@TelegramUserId AND GETDATE()<[Expires] AND [Token] IS NOT NULL";
+            const string sql = "SELECT [Token] FROM [dbo].[VkUser] WHERE [TelegramUserId]=@TelegramUserId AND ([Expires] IS NULL OR GETDATE()<[Expires]) AND [Token] IS NOT NULL";
             string[] result;
             using (var connection = Connection())
             {

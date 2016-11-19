@@ -126,16 +126,26 @@ namespace TsabWebApi.BotCommands
         private static List<Task> Tasks = new List<Task>();
         private ISendItem _publishPhoto(ISearchResultItem item,int wallId,int albumId, MessageModel message, out MessageFlow flow)
         {
-            var task = _context.CompareService.Publish(item, message.From.Id, wallId,
-                albumId);
-            task.ContinueWith(async tsk =>
+            Task task=null;
+            try
             {
-                if (tsk.Exception != null) throw new Exception(tsk.Exception.Message);
-                await _context.BotMethods.BotMethod("sendMessage",
-                    new SendMessageModel(message.Chat.Id, "Готово!"));
-            });
+                _context.CompareService.Publish(item, message.From.Id, wallId,albumId).Wait();
+                //task.ContinueWith(async tsk =>
+                //{
+                //    if (tsk.Exception != null) throw new Exception(tsk.Exception.Message);
+                //    await _context.BotMethods.BotMethod("sendMessage",
+                //        new SendMessageModel(message.Chat.Id, "Готово!"));
+                //});
+                flow = null;
+            }
+            catch (Exception e)
+            {
+                flow = new MessageFlow()
+                {
+                    new MessageFlowItem(message.Chat.Id,e.Message)
+                };
+            }
             Tasks.Add(task);
-            flow = null;
             return new SendStickerModel(message.From.Id, "BQADAgADWQADq3KnAj5VX6KhUianAg");
         }
         private ISendItem _publish(string text, MessageModel message, out MessageFlow flow)

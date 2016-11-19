@@ -130,7 +130,7 @@ namespace TsabWebApi.Controllers
         [HttpGet]
         public HttpResponseMessage VkGroup(string code, Guid state)
         {
-            var authInfo = _dbService.GetToken(new Guid(code));
+            var authInfo = _dbService.GetToken(state);
             _dbService.UpdateVkUser(state, code: code);
             var client = new WebClient();
             var url =
@@ -139,20 +139,22 @@ namespace TsabWebApi.Controllers
             var jobject = JObject.Parse(tokenData);
             dynamic json= JObject.Parse(tokenData);
             var telegramUserId = _dbService.GetTelegramUserId(state);
-            var tokenObject = jobject.GetValue("access_token" + Math.Abs(authInfo.GroupId));
+            var tokenObject = jobject.GetValue("access_token_" + Math.Abs(authInfo.GroupId.Value));
             if (tokenObject != null)
             {
                 var token = tokenObject.Value<string>();
                 var expiresSec = (int)json.expires_in;
-                var expires = DateTime.UtcNow.AddSeconds(expiresSec);
-                var userId = (long)json.user_id;
-                _dbService.UpdateVkUser(state, token: token, expires: expires, userId: userId);
+                DateTime? expires = null;
+                if (expiresSec != 0)
+                {
+                    expires = DateTime.UtcNow.AddSeconds(expiresSec);
+                }
+
+                _dbService.UpdateVkUser(state, token: token, expires: expires);
                 _botService.BotApi.BotMethod("sendMessage", new SendMessageModel(telegramUserId, "Вот теперь все действительно готово!!!")).Wait();
             }
             else
-            {
-                _botService.BotApi.BotMethod("sendMessage", new SendMessageModel(telegramUserId, json.error_description)).Wait();
-
+            {                
             }
             return View("vk");
         }
